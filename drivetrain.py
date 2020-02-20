@@ -112,7 +112,7 @@ class Drivetrain():
         for j in range(len(torque)):
             planet_forces[j,:] = self.fsolve_TE3(self.pl, R0, 0.01, 200, torque[j], m_y[j], m_z[j]) # planet forces (tangential) (requires inputs/outputs in N-m)
             R0 = planet_forces[j,:] #updates initial guess for faster computation
-        return planet_forces, planet_speed
+        return planet_forces[:, 0], planet_speed
 
 
     def calc_L10(self, planet_forces, planet_speed): 
