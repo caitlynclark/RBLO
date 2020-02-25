@@ -1,7 +1,7 @@
 # RBLO
 A reliability-based layout optimization model for offshore wind turbines. Currently under development.
 
-For technical questions regarding FLORIS, please contact Caitlyn Clark.
+For technical questions regarding FLORIS, please contact Caitlyn Clark (caitlyn.clark@nrel.gov).
 
 A couple of publications with practical information on using floris as a modeling and simulation tool for controls research are
 
@@ -27,7 +27,7 @@ url = {https://github.com/caitlynclark/RBLO}
 
 # Using RBLO
 
-To use the RBLO code, you may want to clone this repository for development, or simply copy and past to use pieces in your own code.
+To use the RBLO code, you may want to clone this repository for development, or simply copy and past to use pieces in your own code. You will need the drivetrain.py file, which contains all classes and functions to calculate planet bearing forces and speeds, and the corresponding L10 life of the bearings. The Calc_L10.py file calls those classes and functions and plots the forces on the bearing. The Case_A_8.txt file contains sample data file from FAST.Farm which will provide the basis for the life calculation.
 
 The source code repository must be cloned directly from GitHub:
 
