@@ -29,6 +29,10 @@ url = {https://github.com/caitlynclark/RBLO}
 
 To use the RBLO code, you may want to clone this repository for development, or simply copy and past to use pieces in your own code. You will need the drivetrain.py file, which contains all classes and functions to calculate planet bearing forces and speeds, and the corresponding L10 life of the bearings. The Calc_L10.py file calls those classes and functions and plots the forces on the bearing. The Case_A_8.txt file contains sample data file from FAST.Farm which will provide the basis for the life calculation.
 
+There are a few equations referenced in the code, which come from these sources:
+1] Guo, Yi, Jonathan Keller, and William LaCava. "Planetary gear load sharing of wind turbine drivetrains subjected to non‐torque loads." Wind Energy 18.4 (2015): 757-768.
+2] Zaretsky, Erwin V. "Rolling bearing life prediction, theory, and application." (2013).
+
 The source code repository must be cloned directly from GitHub:
 
 git clone https://github.com/caitlynclark/RBLO
