@@ -27,7 +27,10 @@ url = {https://github.com/caitlynclark/RBLO}
 
 # Using RBLO
 
-To use the RBLO code, you may want to clone this repository for development, or simply copy and past to use pieces in your own code. You will need the drivetrain.py file, which contains all classes and functions to calculate planet bearing forces and speeds, and the corresponding L10 life of the bearings. The Calc_L10.py file calls those classes and functions and plots the forces on the bearing. The Case_A_8.txt file contains sample data file from FAST.Farm which will provide the basis for the life calculation.
+To use the RBLO code, you may want to clone this repository for development, or simply copy and past to use pieces in your own code. This repository contains three directories:
+1] The DrivetrainModel directory enables the calculation of planet bearing forces and L10 life of planet bearings based on FAST.Farm or FAST output ascii files. 
+2] The RBLO_BearingExample directory contains an example to complete reliability-based layout optimization based on planet bearing reliablity.
+3] The Surrogate directory contains the code to process FAST.Farm data generated over 36 inflow wind conditions to complete RBLO with the RBLO_BearingExample directory's code.  
 
 There are a few equations referenced in the code, which come from these sources:
 
