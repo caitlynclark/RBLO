@@ -9,14 +9,12 @@ Created on Wed Apr  1 09:55:09 2020
 #Internal Modules
 import numpy as np
 import math
-#import pandas as pd
 from datetime import datetime
-import multiprocessing #import Pool
-#from joblib import Parallel, delayed
+import multiprocessing 
 from itertools import repeat
 import dill
 import mpi4py.MPI as MPI
-from mpi4py.futures import MPIPoolExecutor #executor map
+from mpi4py.futures import MPIPoolExecutor 
 
 MPI.pickle.__init__(dill.dumps, dill.loads)
 num_cores = multiprocessing.cpu_count()
@@ -26,12 +24,12 @@ num_cores = multiprocessing.cpu_count()
 import make_surrogates
 
 if __name__ == '__main__':
-    inflows = ['Inflow' + '%02d' % (i) for i in range(16,36)]
+    inflows = ['Inflow' + '%02d' % (i) for i in range(36)]
     cases = ['Case' + '%03d' % (i) for i in range(625)]
     turbines = ['T1', 'T2']
 
     seeds = ['Seed_0', 'Seed_1', 'Seed_2', 'Seed_3', 'Seed_4', 'Seed_5']
-    path_to_surrogate = '/scratch/cclark2/Surrogate_Models/' #'/Users/cclark2/Desktop/RBLO/Surrogate_Models/'    
+    path_to_surrogate = '/scratch/cclark2/Surrogate_Models/'    
     
     D_rotor = 126.0 #rotor diameter of 5MW Ref turbine
     x_cross = np.arange(-3, 3.01, 0.25) * D_rotor #offset distances from FastFarm to train interpolant
