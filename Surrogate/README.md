@@ -5,3 +5,5 @@ This directory contains the code to process FAST.Farm data generated over 36 inf
 2] example_make_surrogates.py contains code to make surrogates for turbine 1 (upwind) and 2 (downwind) over 36 inflow conditions
 
 3] make_surrogates.sh is the shell script to execute the surrogate-making operation on NREL's high-performance computer. 
+
+4] /Surrogate_Models/ contains the resulting 2D interpolation functions for 36 inflow conditions using FAST.Farm data and their visualized surfaces
