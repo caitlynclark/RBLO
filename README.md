@@ -11,7 +11,7 @@ Clark, C.E., Barter, G., Shaler, K., Guo, Y., DuPont, B.: Surrogate Modeling for
 
 # Citation
 
-If FLORIS played a role in your research, please cite it. This software can be cited as:
+If RBLO played a role in your research, please cite it. This software can be cited as:
 
 RBLO. Version 1.0.0 (2019). Available at https://github.com/caitlynclark/RBLO.
 For LaTeX users:
