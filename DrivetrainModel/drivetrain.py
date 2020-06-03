@@ -14,7 +14,7 @@ class Drivetrain():
     Base drivetrain class that calculates forces and L10 lifetime for planet bearings. 
     """
 
-    def __init__(self, FF_timestep, m_c, d_c, m_s, m_p, N, g, beta, L_c, L_s, L_p, rho, C, e):
+    def __init__(self, FF_timestep, m_c, d_c, m_s, m_p, N, g, beta, L_c, L_s, L_p, rho, C, e, omega):
         
         '''Instantiate LayoutOptimization object and parameter values.'''
 
@@ -32,22 +32,22 @@ class Drivetrain():
         self.rho = rho                      # bedplate tilting angle (if don't want to include, set to 0 degrees)
         self.C = C                          # bearing basic dynamic load rating or capacity, N (the load that a bearing can carry for 1 million inner-race revolutions with a 90% probability of survival)
         self.e = e                          # constant for roller bearings
-        
+        self.omega = omega                  # angle from planetary gear center to bearing center
+
 
     def pl(self, R, alpha, torque, m_y, m_z):
     
-        '''Calculation of forces via Eq 9 in Guo et al. 2015, Wind Energy. Inconsistencies between this code and the equations in the paper have been confirmed with Guo in January 2020'''
+        '''Calculation of forces via Eq 9 in Guo et al. 2015, Wind Energy. Inconsistencies between this code and the equations in the paper have been confirmed with Guo in January 2020 and again June 2020'''
 
-        omega = 2 * np.pi/self.N            # angle from planetary gear center to bearing center
         temp = np.zeros((2 * self.N,))      # sun planet mesh loads
 
         for i in range(self.N): # parts of Eq. 9 that require summation over the bearings
-            temp[0] = temp[0] - R[i] * np.cos(omega * i + alpha + self.beta[i]) + (self.m_p * self.g * np.sin(omega * i + alpha + self.beta[i]) ** 2) * np.cos(self.rho)
+            temp[0] = temp[0] - (R[i] * np.cos(self.omega * i + alpha + self.beta[i]) - (self.m_p * self.g * np.sin(self.omega * i + alpha + self.beta[i]) ** 2) * np.cos(self.rho))
             temp[1] = temp[1] + R[i]
-            temp[2] = temp[2] + R[i] * np.sin(omega * i + alpha + self.beta[i]) + self.m_c * self.g * np.sin(omega * i + alpha + self.beta[i]) * np.cos(omega * i + alpha + self.beta[i]) * np.cos(self.rho)
+            temp[2] = temp[2] + R[i] * np.sin(self.omega * i + alpha + self.beta[i]) + self.m_c * self.g * np.sin(self.omega * i + alpha + self.beta[i]) * np.cos(self.omega * i + alpha + self.beta[i]) * np.cos(self.rho)
 
         z = np.zeros((self.N,))
-        z[0] = temp[0] + (self.m_c * self.g * np.cos(self.rho)) + ((0.5 * self.m_s * self.g * self.L_s * np.cos(self.rho)) / self.L_c) + (m_y / self.L_c)        
+        z[0] = temp[0] + (self.m_c * self.g * np.cos(self.rho))*(self.L_c/self.L_p) + ((0.5 * self.m_s * self.g * self.L_s * np.cos(self.rho)) / self.L_p) - (m_y / self.L_p)        
         z[1] = temp[1] * self.d_c - torque 
         z[2] = -temp[2] * self.L_p - m_z  
 
@@ -98,7 +98,7 @@ class Drivetrain():
             print('Imaginary');
             x1 = np.nan + np.zeros_like(x1)
             
-        return x1 #planet forces
+        return x1 #planet forces (f_t, i)
 
 
     def calc_planet_forces(self, planet_speed, alpha, torque, m_y, m_z):
@@ -111,7 +111,17 @@ class Drivetrain():
         for j in range(len(torque)):
             planet_forces[j,:] = self.fsolve_TE3(self.pl, R0, 0.01, 200, alpha[j], torque[j], m_y[j], m_z[j]) # planet forces (tangential) (requires inputs/outputs in N-m)
             R0 = planet_forces[j,:] #updates initial guess for faster computation
-        return planet_forces[:, 0], planet_speed #only return one bearing's forces, if you are assuming even load distribution 
+        
+        #Define tangential forces for a single planet bearing (pb = 0)
+        f_t = planet_forces[:, 0]
+        
+        #Calculate radial forces for a single planet bearing (come back and make this for all bearings so that planet forces can be calc'd for all three in future)
+        f_r = -self.m_p * self.g * np.sin(self.omega + alpha + self.beta[0]) * np.cos(self.rho)
+        
+        #Combine tangential and radial forces via sum of squares
+        F = [((ii**2 + jj**2)**(0.5)) for ii, jj in zip(f_t, f_r)]
+                
+        return F, f_t, f_r, planet_speed #only return one bearing's forces, if you are assuming even load distribution 
 
 
     def calc_L10(self, planet_forces, planet_speed): 
@@ -130,7 +140,7 @@ class Drivetrain():
         return L10, L10_total #returns L10, or the vector of life calculations at each point in the time series
   
 
-    def plot_loads(self, x1, x2, x3, x4, x1_label, x2_label, x3_label, x4_label, xlabel, ylabel, filename):
+    def plot_loads(self, x1, x2, x3, x4, x1_label, x2_label, x3_label, x4_label, xlabel, ylabel):
         
         '''Plot torque and non-torque loads'''
 
@@ -143,5 +153,6 @@ class Drivetrain():
         plt.xlabel(str(xlabel))
         plt.ylabel(str(ylabel))
         plt.legend(loc='lower right')
-        plt.savefig(str(filename))
+#        plt.savefig(str(filename))
         plt.show()
+        
