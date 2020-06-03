@@ -7,6 +7,7 @@ Created on Mon Dec 30 10:10:11 2019
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import fsolve
 
 
 class Drivetrain():
@@ -54,53 +55,6 @@ class Drivetrain():
         return z #this value makes up the Jacobian       
     
 
-    def fsolve_TE3(self, fun, x0, tol, max_fsolve_iter, alpha, torque, m_y, m_z):
-        
-        '''Function that solves for the Jacobian matrix. Can be replaced by other built-in solvers.'''
-        
-        fsolve_iter = 0 
-        error = 10 
-        n = len(x0) 
-        x0 = np.asarray(x0).ravel().conj().T 
-
-        E = []
-        H = [] 
-        Jacobian = np.zeros((n,n)) 
-        while fsolve_iter < max_fsolve_iter and error > tol: 
-            fsolve_iter += 1 
-            
-            for i in range(n):
-                E.append([x0[i] * 0.95, x0[i] * 1.05]) 
-                H.append(E[i][1] - E[i][0])
-
-                xplus = x0.copy() 
-                xminus = x0.copy()
-                
-                xplus[i]  = E[i][1] 
-                xminus[i] = E[i][0] 
-
-                J = (self.pl(xplus, alpha, torque, m_y, m_z) - self.pl(xminus, alpha, torque, m_y, m_z)) / H[i] 
-                Jacobian[:,i] = J 
-                
-            f = self.pl(x0, alpha, torque, m_y, m_z).conj().T 
-            error = np.sqrt(np.sum(f ** 2)) 
-            inv_result = np.linalg.solve(Jacobian, f)
-            x1 = x0 - inv_result
-            x0 = x1
-
-        #max iteration error
-        if fsolve_iter == max_fsolve_iter:
-            print('Max fsolve_iterations reached');
-            x1 = np.nan + np.zeros_like(x1)
-        
-        #imaginary number error
-        if np.abs(np.sum(np.imag(x0))) > 0:
-            print('Imaginary');
-            x1 = np.nan + np.zeros_like(x1)
-            
-        return x1 #planet forces (f_t, i)
-
-
     def calc_planet_forces(self, planet_speed, alpha, torque, m_y, m_z):
         
         '''Calculate planet bearing forces: calls the fsolve_TE3 solver which builds and solves the Jacobian matrix made of planetary forces calculated in the pl function'''
@@ -109,7 +63,7 @@ class Drivetrain():
         R0 = np.asarray([1E3,1E3,1E3])    #initial guess for ring planet mesh forces
 
         for j in range(len(torque)):
-            planet_forces[j,:] = self.fsolve_TE3(self.pl, R0, 0.01, 200, alpha[j], torque[j], m_y[j], m_z[j]) # planet forces (tangential) (requires inputs/outputs in N-m)
+            planet_forces[j,:] = fsolve(self.pl, R0, args = (alpha[j], torque[j], m_y[j], m_z[j]), xtol = 0.01, maxfev = 200) # planet forces (tangential) (requires inputs/outputs in N-m)
             R0 = planet_forces[j,:] #updates initial guess for faster computation
         
         #Define tangential forces for a single planet bearing (pb = 0)
