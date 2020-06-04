@@ -45,7 +45,7 @@ class Drivetrain():
         for i in range(self.N): # parts of Eq. 9 that require summation over the bearings
             temp[0] = temp[0] - (R[i] * np.cos(self.omega * i + alpha + self.beta[i]) - (self.m_p * self.g * np.sin(self.omega * i + alpha + self.beta[i]) ** 2) * np.cos(self.rho))
             temp[1] = temp[1] + R[i]
-            temp[2] = temp[2] + R[i] * np.sin(self.omega * i + alpha + self.beta[i]) + self.m_c * self.g * np.sin(self.omega * i + alpha + self.beta[i]) * np.cos(self.omega * i + alpha + self.beta[i]) * np.cos(self.rho)
+            temp[2] = temp[2] + R[i] * np.sin(self.omega * i + alpha + self.beta[i]) + self.m_p * self.g * np.sin(self.omega * i + alpha + self.beta[i]) * np.cos(self.omega * i + alpha + self.beta[i]) * np.cos(self.rho)
 
         z = np.zeros((self.N,))
         z[0] = temp[0] + (self.m_c * self.g * np.cos(self.rho))*(self.L_c/self.L_p) + ((0.5 * self.m_s * self.g * self.L_s * np.cos(self.rho)) / self.L_p) - (m_y / self.L_p)        
