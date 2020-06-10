@@ -55,7 +55,7 @@ if __name__ == '__main__':
     e = 10/3                                    # constant for roller bearings
     N_r = 56                                    # number of teeth in ring gear
     N_p = 17                                    # number of teeth in planet gear
-    
+    omega = 2 * math.pi/N                       # angle from planetary gear center to bearing center
     
     # Instantiate the drivetrain object
     surrogate = make_surrogates.Surrogate(
@@ -74,7 +74,8 @@ if __name__ == '__main__':
                             C = C,
                             e = e,
                             N_r = N_r,
-                            N_p = N_p
+                            N_p = N_p, 
+                            omega = omega
     )
     
     startTime = datetime.now()
