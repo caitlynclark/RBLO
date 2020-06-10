@@ -148,34 +148,45 @@ class RBLO(Optimization):
             turb_label = range(0, len(layout_x))    
     
             # Assign L10 values to all turbines
-            L10_matrix = np.full( (len(turb_label), len(turb_label)), 1E15) #np.full( (len(turb_label), len(turb_label)), float(L10_T1_surface[0]) )
+            # GB: DEFAULT VALUE FOR L10 SHOULD BE T1 VALUE LIKE IT IS FOR POWER
+            L10_matrix = np.full( (len(turb_label), len(turb_label)), float(L10_T1_surface[0])) #np.full( (len(turb_label), len(turb_label)), float(L10_T1_surface[0]) )
             Power_matrix = np.full( (len(turb_label), len(turb_label)), float(Power_T1_surface[0]) )
     
             turbs_to_analyse = []
             
             # Delete pairs that fall outside space constraints
+            # GB: THERE IS NO LOGIC HERE TO DECIDE WHICH IS T1 AND WHICH IS T2 BASED ON THE INFLOW DIRECTION
+            # I DON'T THINK THIS COMBINATIONS IS GIVING YOU WHAT YOU WANT.  WITH THIS APPROACH EVERYTHING IS A T2 AND NOTHING IS A T1
             for ii in list(combinations(turb_label, 2)):
                 turb1 = ii[0] 
                 turb2 = ii[1]
-                
+
+                # GB: ARE THESE DISTANCES CONSISTENT WITH THE DOMAIN LIMITS OF THE SURROGATE MODEL?
                 if abs(turbs[turb2][1] - turbs[turb1][1]) <= 1260 and abs(turbs[turb2][0] - turbs[turb1][0]) <= 252:
                     turbs_to_analyse.append(ii)
                     
             # Assign L10 & power vals; turbs are ordered in proximity to the incoming wind direction
+            # GB: AGAIN, YOU ARE ASSIGNING T1 AND T2 BUT THERE IS NO LOGIC TO DETERMINE THEM, JUST INDEX ORDERING IN YOUR ARRAY
             for ii in turbs_to_analyse:
                 turb1 = ii[0]
                 turb2 = ii[1]
                                 
-                L10_matrix[turb1][turb2] = L10_T2_surface(layout_y[turb2]-layout_y[turb1],layout_x[turb2]-layout_x[turb1])
-                Power_matrix[turb1][turb2] = Power_T2_surface(layout_y[turb2]-layout_y[turb1],layout_x[turb2]-layout_x[turb1]) #kW/hr
+                L10_matrix[turb1, turb2] = L10_T2_surface(layout_y[turb2]-layout_y[turb1],layout_x[turb2]-layout_x[turb1])
+                Power_matrix[turb1, turb2] = Power_T2_surface(layout_y[turb2]-layout_y[turb1],layout_x[turb2]-layout_x[turb1]) #kW/hr
                         
             # Find the minimum of each row (this is the minimum )
+            # GB: SHOULD BE SIMPLY SOMETHING LIKE THIS:
+            #------
+            Turbine_L10s[aa,:] = L10_matrix.min(axis=0)
+            Turbine_PowerVals[aa,:] = Power_matrix.min(axis=0)
+            #------
             for column in L10_matrix.T:
                 Turbine_L10s[aa] = [min(column) for column in L10_matrix.T]
-                (Turbine_L10s[aa])[(Turbine_L10s[aa]) == 1E15] = float(L10_T1_surface[0])                
+                # ARGMIN OF COLUMN MEANS ARGMIN OF THE L10_MATRIX COLUMN, WHICH IS NOT WHAT YOU WANT FOR POWER
                 Turbine_PowerVals[aa] = [Power_matrix.T[ii][np.argmin(column)] for ii, column in enumerate(L10_matrix.T)]
 
         # Determine L10 for each turbine based on weighted averaging the wind directions (in hours)
+        # GB: THIS NEEDS TO USE THE LINEAR DAMAGE SUMMATION AS WE DISCUSSED.
         L10_AllWindConds = []
         for column in Turbine_L10s.T:
             L10_AllWindConds.append(float(sum([a*b for a,b in zip(column, self.freq)])) ) #1E5
@@ -202,10 +213,14 @@ class RBLO(Optimization):
         downtime = 231                                                  # hours per replacement
         L10, Power = self.calc_L10_Power(layout_y, layout_x)            # L10 in hours, Power in kW/hr
 
+        # GB: I DON'T SEE THE FLOOR FUNCTION WE DISCUSSED
+        # GB: THIS MEANS EVERY TURBINE GEARBOX IS REPLACED INDEPENDENTLY.
+        #     THAT IS A FINE ASSUMPTION, BUT THE PAPER WAS UNCLEAR ABOUT THIS DETAIL
         replacements = (sum([hours_lifetime/ii for ii in L10]))         # for all turbines in farm took away the "int" in front of the parenthesis bc potlly causing Exit mode 5
         replacement_cost = 715920                                       # cost of GB replacement (ref: Yeng, Sheng, and Court: $628,000 USD2011, $715920 USD2019)
         power_hours = hours_lifetime-(downtime*replacements)    
-        cost = replacement_cost*replacements                            # for all turbines, failure cost   
+        cost = replacement_cost*replacements                            # for all turbines, failure cost
+        # GB: THIS IS AVERAGE POWER PER TURBINE OVER ALL INFLOWS.
         power = (sum(Power)/len(Power)) * power_hours                   # kW/hr*hr for all turbines
         return cost, power, replacements
 

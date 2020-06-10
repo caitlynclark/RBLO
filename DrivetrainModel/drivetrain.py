@@ -82,16 +82,21 @@ class Drivetrain():
         
         '''Calculates L10 for the planet bearings given the planet bearing force and speed time history. L10 life is the time that 90% of a group of bearings will exceed without failing by rolling-element fatigue.'''
 
-        T = self.FF_timestep / (len(planet_speed) * self.FF_timestep - self.FF_timestep) # fraction of total running time at a given load and speed
-        L10 = [T/((10**6/(60*i))*(self.C/abs(j))**self.e) for i,j in zip(planet_speed, planet_forces)] # life at each load and speed combination, in hours
+         # fraction of total running time at a given load and speed
+        Tfrac = 1.0 / float(planet_speed.size)
+
+        # L10 values for every time step, in hours
         # 10**6 million race revolutions conversion factor
         # 60 min/hr conversion factor
-        # i: planet speed 
         # C: bearing basic dynamic load rating or capacity, N (the load that a bearing can carry for 1 million inner-race revolutions with a 90% probability of survival)
         # e: load-life exponent (determined by Lundberg and Palmgren to be 3 for ball bearings and 10/3 for cylindrical roller bearings)
-        L10_total = 1/sum(L10) # total life in hours over varying loads and speeds, Eq. 14 from "Rolling Bearing Life Prediction, Theory, and Application," by Zaretsky (2016)
+        L10 = (1e6 / (60*planet_speed) ) * (self.C/np.abs(planet_forces))**self.e
+
+        # Linear damage summation for cumulative L10
+        # Eq. 14 from "Rolling Bearing Life Prediction, Theory, and Application," by Zaretsky (2016)
+        L10_total = 1.0 / np.sum(Tfrac/L10s)
                      
-        return L10, L10_total #returns L10, or the vector of life calculations at each point in the time series
+        return L10, L10_total
   
 
     def plot_loads(self, x1, x2, x3, x4, x1_label, x2_label, x3_label, x4_label, xlabel, ylabel):

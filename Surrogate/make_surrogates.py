@@ -173,9 +173,9 @@ class Surrogate():
         z = np.zeros((self.N,))
         z[0] = temp[0] + (self.m_c * self.g * np.cos(self.rho))*(self.L_c/self.L_p) + ((0.5 * self.m_s * self.g * self.L_s * np.cos(self.rho)) / self.L_p) - (m_y / self.L_p)        
         z[1] = temp[1] * self.d_c - torque 
-        z[2] = -temp[2] * self.L_p - m_z  
+        z[2] = -temp[2] * self.L_p - m_z
 
-        return z #this value makes up the Jacobian       
+        return z #this value makes up the force balance
   
 
     def calc_L10(self, case, inflow, seeds, turbine, outfile): 
@@ -223,10 +223,20 @@ class Surrogate():
         #Combine tangential and radial forces via sum of squares
         F = [((ii**2 + jj**2)**(0.5)) for ii, jj in zip(f_t, f_r)]
 
-        #Calculate L10 using planet forces (tangential and radial) and planet speed
-        T = self.FF_timestep / (len(planet_speed) * self.FF_timestep - self.FF_timestep) # fraction of total running time at a given load and speed
-        L10 = [T/((10**6/(60*i))*(self.C/abs(j))**self.e) for i,j in zip(planet_speed, F)] # life at each load and speed combination, in hours
-        L10_total = 1/sum(L10) # total life in hours over varying loads and speeds, Eq. 14 from "Rolling Bearing Life Prediction, Theory, and Application," by Zaretsky (2016)
+         # fraction of total running time at a given load and speed
+        Tfrac = 1.0 / float(planet_speed.size)
+
+        # L10 values for every time step, in hours
+        # 10**6 million race revolutions conversion factor
+        # 60 min/hr conversion factor
+        # C: bearing basic dynamic load rating or capacity, N (the load that a bearing can carry for 1 million inner-race revolutions with a 90% probability of survival)
+        # e: load-life exponent (determined by Lundberg and Palmgren to be 3 for ball bearings and 10/3 for cylindrical roller bearings)
+        L10 = (1e6 / (60*planet_speed) ) * (self.C/np.abs(planet_forces))**self.e
+
+        # Linear damage summation for cumulative L10
+        # Eq. 14 from "Rolling Bearing Life Prediction, Theory, and Application," by Zaretsky (2016)
+        L10_total = 1.0 / np.sum(Tfrac/L10s)
+
         print(str(inflow), (case), 'L10_total: ', L10_total)         
             
         return L10_total #returns L10, or the vector of life calculations at each point in the time series
@@ -235,6 +245,7 @@ class Surrogate():
     def calc_power(self, case, inflow, seeds, turbine, outfile):
         
         channel, frame = self.concatenate_seeds(inflow, case, seeds, turbine, outfile)
+        # WHY THE FACTOR OF /(len(frame['GenPwr'])/40)*3600?
         power = frame['GenPwr'].sum(axis = 0, skipna = True)/(len(frame['GenPwr'])/40)*3600
         
         return power
