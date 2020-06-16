@@ -20,19 +20,7 @@ from scipy.optimize import minimize
 
 #%% 2) Load L10 and power interpolant surfaces
 
-path = '/Users/cclark2/floris/examples/'
-
-with open(str(path) + 'Case_A_8_L10_T1', "rb") as dill_file:
-     L10_T1_surface = pickle.load(dill_file)
-     
-with open(str(path) + 'Case_A_8_L10_T2', "rb") as dill_file:
-     L10_T2_surface = pickle.load(dill_file)
-
-with open(str(path) + 'Case_A_8_T1_GenPwr', "rb") as dill_file:
-     Power_T1_surface = pickle.load(dill_file)
-
-with open(str(path) + 'Case_A_8_T2_GenPwr', "rb") as dill_file:
-     Power_T2_surface = pickle.load(dill_file)
+path = '/Users/cclark2/floris/examples/surrogate_models/'
 
 #%%
 
@@ -47,14 +35,15 @@ class Optimization():
         Optimization: An instantiated Optimization object.
     """
 
-    def __init__(self, wd, freq, ws):
+    def __init__(self, wd, wd_freq, ws, ws_freq):
         """
         Instantiate Optimization object and its parameters.
         """
 
         self.wd = wd
-        self.freq = freq
+        self.wd_freq = wd_freq
         self.ws = ws
+        self.ws_freq = ws_freq
 
     def _norm(self, val, x1, x2):
         return (val - x1)/(x2 - x1)
@@ -62,6 +51,9 @@ class Optimization():
     def _unnorm(self, val, x1, x2):
         return np.array(val)*(x2 - x1) + x1
 
+    def _calc_distance(self, x1, y1, x2, y2):
+        return math.sqrt(math.pow(x2 - x1, 2) +
+                         math.pow(y2 - y1, 2) * 1.0)
        
 class RBLO(Optimization):
     """
@@ -69,7 +61,10 @@ class RBLO(Optimization):
     object class that performs reliability-based layout optimization.
     """
 
-    def __init__(self, N, D, layout_x, layout_y, x_min, x_max, 
+    def __init__(self, N, D, layout_x, 
+                           layout_y, 
+                           x_min, 
+                           x_max, 
                            y_min, 
                            y_max, 
                            bndx_min, 
@@ -77,8 +72,11 @@ class RBLO(Optimization):
                            bndx_max, 
                            bndy_max, 
                            wd,
+                           wd_freq,
                            ws,
-                           freq,
+                           ws_freq,
+                           TI,
+                           shear,
                            x0=None,
                            bnds=None,
                            min_dist=None,
@@ -88,13 +86,12 @@ class RBLO(Optimization):
 ):
 
 
-        super().__init__(wd, freq, ws)
+        super().__init__(wd, wd_freq, ws, ws_freq)
 
         self.N = N
         self.D = D
         self.layout_x = layout_x
         self.layout_y = layout_y
-        self.x0 = layout_x + layout_y
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
@@ -103,6 +100,13 @@ class RBLO(Optimization):
         self.bndy_min = bndy_min
         self.bndx_max = bndx_max
         self.bndy_max = bndy_max
+        self.wd = wd
+        self.wd_freq = wd_freq
+        self.ws = ws
+        self.ws_freq = ws_freq
+        self.TI = TI
+        self.shear = shear
+        self.x0 = layout_x + layout_y
         self.min_dist = min_dist 
         self.opt_method = 'SLSQP'
         self.constraints = cons
@@ -127,99 +131,111 @@ class RBLO(Optimization):
     
         return float(m.T[0]), float(m.T[1])
     
-    
-    def calc_L10_Power(self, layout_x, layout_y):    
+        
+    def calc_L10_Power(self, layout_x, layout_y, Vhub):    
         '''Assign L10 values to all turbines'''
+        
+        with open(str(path) + 'Vhub_' + str(Vhub) + '_TI_' + str(self.TI) + '_Shear_' + str(self.shear) + '_L10_T1', "rb") as dill_file:
+             L10_T1 = pickle.load(dill_file)
+             
+        with open(str(path) + 'Vhub_' + str(Vhub) + '_TI_' + str(self.TI) + '_Shear_' + str(self.shear) + '_Power_T1', "rb") as dill_file:
+             Power_T1 = pickle.load(dill_file)
     
-        Turbine_L10s = np.zeros((len(self.wd), self.N))
-        Turbine_PowerVals = np.zeros((len(self.wd), self.N))
+        with open(str(path) + 'Vhub_' + str(Vhub) + '_TI_' + str(self.TI) + '_Shear_' + str(self.shear) + '_L10_T2', "rb") as dill_file: 
+             L10_T2_surface = pickle.load(dill_file)
+
+        with open(str(path) + 'Vhub_' + str(Vhub) + '_TI_' + str(self.TI) + '_Shear_' + str(self.shear) + '_Power_T2', "rb") as dill_file:
+             Power_T2_surface = pickle.load(dill_file)
+
+        
+        Turbine_L10s = [] #np.zeros((len(wd), N))
+        Turbine_PowerVals = [] #np.zeros((len(wd), N))
     
         for aa, wind_direction in enumerate(self.wd):    
             
             # Define the wind array and rotate towards the wind direction
-            turbs = []
-            theta = math.radians(wind_direction) #rotate grid 90 deg
-            for ii in list(zip(layout_x, layout_y)):
-                turbs.append((self.rotate_array(ii, theta)))
+            theta = math.radians(wind_direction) #convert degrees to radians, rotation of position is clockwise from Q1 about the origin 
+            layout = [self.rotate_array(ii, theta) for ii in list(zip(layout_x, layout_y))]
             
-            layout_x = [ii[0] for ii in turbs]
-            layout_y = [ii[1] for ii in turbs]
-            
-            turb_label = range(0, len(layout_x))    
-    
             # Assign L10 values to all turbines
-            L10_matrix = np.full( (len(turb_label), len(turb_label)), 1E15) #np.full( (len(turb_label), len(turb_label)), float(L10_T1_surface[0]) )
-            Power_matrix = np.full( (len(turb_label), len(turb_label)), float(Power_T1_surface[0]) )
-    
-            turbs_to_analyse = []
-            
-            # Delete pairs that fall outside space constraints
-            for ii in list(combinations(turb_label, 2)):
-                turb1 = ii[0] 
-                turb2 = ii[1]
-                
-                if abs(turbs[turb2][1] - turbs[turb1][1]) <= 1260 and abs(turbs[turb2][0] - turbs[turb1][0]) <= 252:
-                    turbs_to_analyse.append(ii)
-                    
-            # Assign L10 & power vals; turbs are ordered in proximity to the incoming wind direction
-            for ii in turbs_to_analyse:
-                turb1 = ii[0]
-                turb2 = ii[1]
-                                
-                L10_matrix[turb1][turb2] = L10_T2_surface(layout_y[turb2]-layout_y[turb1],layout_x[turb2]-layout_x[turb1])
-                Power_matrix[turb1][turb2] = Power_T2_surface(layout_y[turb2]-layout_y[turb1],layout_x[turb2]-layout_x[turb1]) #kW/hr
+            L10_matrix = np.full( (len(layout), len(layout)), float(L10_T1)) #1E15
+            Power_matrix = np.full( (len(layout), len(layout)), float(Power_T1) )
                         
-            # Find the minimum of each row (this is the minimum )
-            for column in L10_matrix.T:
-                Turbine_L10s[aa] = [min(column) for column in L10_matrix.T]
-                (Turbine_L10s[aa])[(Turbine_L10s[aa]) == 1E15] = float(L10_T1_surface[0])                
-                Turbine_PowerVals[aa] = [Power_matrix.T[ii][np.argmin(column)] for ii, column in enumerate(L10_matrix.T)]
+            # Arrange the turbines from upwind to downwind
+            layout.sort(key = lambda x: x[1])
+            
+            # If two turbines are close enough together, assign the downwind turbine a reliability and power value
+            for turb in list(combinations(enumerate(layout), 2)):
+                if abs(turb[1][1][1] - turb[0][1][1]) <= 1890 and abs(turb[1][1][0] - turb[0][1][0]) <= 378:
+                    L10_matrix[turb[0][0], turb[1][0]] = L10_T2_surface(turb[1][1][1] - turb[0][1][1], turb[1][1][0] - turb[0][1][0])
+                    Power_matrix[turb[0][0], turb[1][0]] = Power_T2_surface(turb[1][1][1] - turb[0][1][1], turb[1][1][0] - turb[0][1][0]) #kW/hr
+                    
+            # Find the minimum L10 of each row (this identifies which wake limits the life of the bearing)
+            Turbine_L10s.append( [min(column) for column in L10_matrix.T] )
+            result = [np.where(column == np.amin(column)) for column in L10_matrix.T]
+            result = [ii[0][0] for ii in result]    
+            Turbine_PowerVals.append( [column[ii] for column, ii in zip(Power_matrix.T, result)] )                       
+            
+        # Use linear damage accumulation to determine L10 for each turbine for the wind directions (in hours)
+        L10_OverAllWindDirs = [1/sum([b/a for a,b in zip(column, self.wd_freq)]) for column in Turbine_L10s] #1E5 #self.freq
 
-        # Determine L10 for each turbine based on weighted averaging the wind directions (in hours)
-        L10_AllWindConds = []
-        for column in Turbine_L10s.T:
-            L10_AllWindConds.append(float(sum([a*b for a,b in zip(column, self.freq)])) ) #1E5
+        # Use weighted sums to determine power for each turbine for the wind directions (in hours)
+        Power_OverAllWindDirs = [sum([a*b for a,b in zip(column, self.wd_freq)]) for column in Turbine_PowerVals]   #kW/hr #self.freq
         
-        # Determine power for each turbine based on weighted averaging the wind directions (in hours)
-        Power_AllWindConds = []
-        for column in Turbine_PowerVals.T:
-            Power_AllWindConds.append(float(sum([a*b for a,b in zip(column, self.freq)])) )   #kW/hr
-
-        return L10_AllWindConds, Power_AllWindConds                     # in hours
+        return L10_OverAllWindDirs, Power_OverAllWindDirs   # in hours, will be the same length of N
     
     
-    def calc_cost_power(self, layout):
+    def calc_cost_power(self, x0):
         '''Failure costs over AEP'''
-        
-        layout_x = layout[0:int(len(layout)/2)]
-        layout_y = layout[int(len(layout)/2):] 
+                
         layout_x = [self._unnorm(valx, self.bndx_min, self.bndx_max) \
-            for valx in layout_x]
-        layout_y = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
-            for valy in layout_y]
+            for valx in x0[0:self.N]]
         
-        hours_lifetime = 20*365*24*(len(layout_x))                      # hours in 20 year lifespan
-        downtime = 231                                                  # hours per replacement
-        L10, Power = self.calc_L10_Power(layout_y, layout_x)            # L10 in hours, Power in kW/hr
+        layout_y = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
+            for valy in x0[self.N:2*self.N]]
+        
+        L10_ws = []      
+        Power_ws = []
+                                
+        for Vhub in self.ws:
 
-        replacements = (sum([hours_lifetime/ii for ii in L10]))         # for all turbines in farm took away the "int" in front of the parenthesis bc potlly causing Exit mode 5
-        replacement_cost = 715920                                       # cost of GB replacement (ref: Yeng, Sheng, and Court: $628,000 USD2011, $715920 USD2019)
+            L10_temp, Power_temp = self.calc_L10_Power(layout_y, layout_x, Vhub)            # L10 in hours, Power in kW/hr, len(N)
+            L10_ws.append(L10_temp)
+            Power_ws.append(Power_temp)
+
+        L10 = []
+        Power = []
+
+        for aa in range(self.N):
+            Turbine_L10 = [ii[aa] for ii in L10_ws] #get list of L10s per turbine over ws
+            L10.append(1/sum([b/a for a,b in zip(Turbine_L10, self.ws_freq)]))
+            
+            Turbine_Power = [ii[aa] for ii in Power_ws]
+            Power.append(sum([a*b for a,b in zip(Turbine_Power, self.ws_freq)]))
+
+        hours_lifetime = 20*365*24                                           # hours in 20 year lifespan
+        downtime = 231                                                       # hours per replacement
+        replacements = math.floor(sum([hours_lifetime/ii for ii in L10]))    # for all turbines in farm took away the "int" in front of the parenthesis bc potlly causing Exit mode 5
+        replacement_cost = 721000                                            # cost of GB replacement (ref: Yeng, Sheng, and Court: $628,000 USD2011, $715920 USD2019, 720623.01 USD2020)
         power_hours = hours_lifetime-(downtime*replacements)    
-        cost = replacement_cost*replacements                            # for all turbines, failure cost   
-        power = (sum(Power)/len(Power)) * power_hours                   # kW/hr*hr for all turbines
-        return cost, power, replacements
+        cost = replacement_cost*replacements                                 # for all turbines, failure cost   
+
+        power = sum([a*power_hours for a in Power])                          # kW/hr*hr for all turbines
+
+        return cost, power, replacements                                     # of array
 
 
     def objective(self, layout):
         '''Failure costs over AEP'''
         
-        cost, power, replacements = self.calc_cost_power(layout)        # L10 in hours, Power in kW/hr
-#        return (1E12/power)                                            # power-only objective
-        return ((0.9*cost)/(0.1*power))*1E03                            # multi-objective for Pareto
-#        return (cost/1E10)                                             # cost-only objective
+        cost, power, replacements = self.calc_cost_power(layout)             # L10 in hours, Power in kW/hr
+        return (cost/power)*1E7 
+#        return cost/1E08 
+#        return (1/power)*1E15 
 
 
     def _space_constraint(self, x_in, min_dist):
+
         x = x_in[0:self.N] 
         y = x_in[self.N:]
         
@@ -245,11 +261,9 @@ class RBLO(Optimization):
                                 method=self.opt_method,
                                 bounds=self.bnds,
                                 constraints=self.cons,
-                                options=self.opt_options) #
+                                options=self.opt_options)
 
         opt_results = self.residual_plant.x #need the .x for later parsing
-#        opt_results_all = self.residual_plant #need the .x for later parsing
-#        print('opt_results_all: ', opt_results_all)
         return opt_results
 
 
@@ -293,26 +307,34 @@ class RBLO(Optimization):
 
         locsx_old = [self._unnorm(valx, self.bndx_min, self.bndx_max) \
                      for valx in self.x0[0:self.N]]
+        locsx_old_D = [valx/self.D for valx in locsx_old]
         locsy_old = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
                      for valy in self.x0[self.N:2*self.N]]
+        locsy_old_D = [valy/self.D for valy in locsy_old]
         locsx = [self._unnorm(valx, self.bndx_min, self.bndx_max) \
                  for valx in self.residual_plant.x[0:self.N]]
+        locsx_D = [valx/self.D for valx in locsx]
+
         locsy = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
                  for valy in self.residual_plant.x[self.N:2*self.N]]
-                
-        cost, power, replacements = self.calc_cost_power(self.residual_plant.x)   #L10 in hours, Power in kW/hr
-        print('Replacements: ', replacements, 'Cost: ', cost, 'Power: ', power)
+        locsy_D = [valx/self.D for valx in locsy]
 
+        cost, power, replacements = self.calc_cost_power(self.residual_plant.x)   #L10 in hours, Power in kW/hr
+        objective = self.objective(self.residual_plant.x) #((0.3*cost)/(0.9*power))*1E08
+
+        
         plt.figure(figsize=(8,7))
         fontsize= 16
-        plt.plot(locsx_old, locsy_old, '3b', markersize=16)
-        plt.plot(locsx, locsy, '2r', markersize=16)
-        plt.xlabel('x (m)', fontsize=fontsize)
-        plt.ylabel('y (m)', fontsize=fontsize)
+        plt.plot(locsx_old_D, locsy_old_D, '3', color = 'darkcyan', markersize=16)
+        plt.plot(locsx_D, locsy_D, '2', color = 'red', markersize=16)
+        plt.xlabel('x (rotor diameters)', fontsize=fontsize)
+        plt.ylabel('y (rotor diameters)', fontsize=fontsize)
         plt.grid()
-        plt.axis([-100, self.bndx_max + 100, -100, self.bndy_max + 100])
+        plt.axis([-1.5, 16, -1.5, 16])
         plt.tick_params(which='both', labelsize=fontsize)
-        plt.legend(['Old locations', 'New locations'], loc='lower center', \
+        plt.legend(['Original locations', 'Optimized locations'], loc='lower center', \
             bbox_to_anchor=(0.5, 1.01), ncol=2, fontsize=fontsize)
+        plt.text(3.5, -0.75, 'Objective = ' + str(objective))
+        plt.text(2.5, -1.25, 'Cost = ' + str(cost) + '   Power = ' + str(power))
         plt.show()
-
+        return objective, cost, power, replacements 
