@@ -152,7 +152,7 @@ class RBLO(Optimization):
         Turbine_PowerVals = [] #np.zeros((len(wd), N))
     
         for aa, wind_direction in enumerate(self.wd):    
-            
+
             # Define the wind array and rotate towards the wind direction
             theta = math.radians(wind_direction) #convert degrees to radians, rotation of position is clockwise from Q1 about the origin 
             layout = [self.rotate_array(ii, theta) for ii in list(zip(layout_x, layout_y))]
@@ -175,9 +175,10 @@ class RBLO(Optimization):
             result = [np.where(column == np.amin(column)) for column in L10_matrix.T]
             result = [ii[0][0] for ii in result]    
             Turbine_PowerVals.append( [column[ii] for column, ii in zip(Power_matrix.T, result)] )                       
-            
+        
         # Use linear damage accumulation to determine L10 for each turbine for the wind directions (in hours)
-        L10_OverAllWindDirs = [1/sum([b/a for a,b in zip(column, self.wd_freq)]) for column in Turbine_L10s] #1E5 #self.freq
+
+        L10_OverAllWindDirs = [1/sum([b/a for a,b in zip(column, self.wd_freq)]) for column in Turbine_L10s] #1E5 #self.freq        
 
         # Use weighted sums to determine power for each turbine for the wind directions (in hours)
         Power_OverAllWindDirs = [sum([a*b for a,b in zip(column, self.wd_freq)]) for column in Turbine_PowerVals]   #kW/hr #self.freq
@@ -194,24 +195,28 @@ class RBLO(Optimization):
         layout_y = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
             for valy in x0[self.N:2*self.N]]
         
-        L10_ws = []      
-        Power_ws = []
-                                
-        for Vhub in self.ws:
+        if len(self.ws) > 1:
+            L10_ws = []      
+            Power_ws = []
+                                    
+            for Vhub in self.ws:
+                L10_temp, Power_temp = self.calc_L10_Power(layout_y, layout_x, Vhub)            # L10 in hours, Power in kW/hr, len(N)
+                L10_ws.append(L10_temp)
+                Power_ws.append(Power_temp)    
+    
+            L10 = []
+            Power = []
+    
+            for aa in range(self.N):
+    
+                Turbine_L10 = [ii[aa] for ii in L10_ws] #get list of L10s per turbine over ws
+                L10.append(1/sum([b/a for a,b in zip(Turbine_L10, self.ws_freq)]))
+                
+                Turbine_Power = [ii[aa] for ii in Power_ws]
+                Power.append(sum([a*b for a,b in zip(Turbine_Power, self.ws_freq)]))
 
-            L10_temp, Power_temp = self.calc_L10_Power(layout_y, layout_x, Vhub)            # L10 in hours, Power in kW/hr, len(N)
-            L10_ws.append(L10_temp)
-            Power_ws.append(Power_temp)
-
-        L10 = []
-        Power = []
-
-        for aa in range(self.N):
-            Turbine_L10 = [ii[aa] for ii in L10_ws] #get list of L10s per turbine over ws
-            L10.append(1/sum([b/a for a,b in zip(Turbine_L10, self.ws_freq)]))
-            
-            Turbine_Power = [ii[aa] for ii in Power_ws]
-            Power.append(sum([a*b for a,b in zip(Turbine_Power, self.ws_freq)]))
+        else:
+            L10, Power = self.calc_L10_Power(layout_x, layout_y, self.ws[0])                 # L10 in hours, Power in kW/hr #outputs L10 values for each turbine (len(N))
 
         hours_lifetime = 20*365*24                                           # hours in 20 year lifespan
         downtime = 231                                                       # hours per replacement
@@ -230,8 +235,6 @@ class RBLO(Optimization):
         
         cost, power, replacements = self.calc_cost_power(layout)             # L10 in hours, Power in kW/hr
         return (cost/power)*1E7 
-#        return cost/1E08 
-#        return (1/power)*1E15 
 
 
     def _space_constraint(self, x_in, min_dist):
@@ -321,7 +324,6 @@ class RBLO(Optimization):
 
         cost, power, replacements = self.calc_cost_power(self.residual_plant.x)   #L10 in hours, Power in kW/hr
         objective = self.objective(self.residual_plant.x) #((0.3*cost)/(0.9*power))*1E08
-
         
         plt.figure(figsize=(8,7))
         fontsize= 16
@@ -336,5 +338,7 @@ class RBLO(Optimization):
             bbox_to_anchor=(0.5, 1.01), ncol=2, fontsize=fontsize)
         plt.text(3.5, -0.75, 'Objective = ' + str(objective))
         plt.text(2.5, -1.25, 'Cost = ' + str(cost) + '   Power = ' + str(power))
+
         plt.show()
+
         return objective, cost, power, replacements 
