@@ -154,7 +154,7 @@ class RBLO(Optimization):
         for aa, wind_direction in enumerate(self.wd):    
 
             # Define the wind array and rotate towards the wind direction
-            theta = math.radians(wind_direction) #convert degrees to radians, rotation of position is clockwise from Q1 about the origin 
+            theta = -(math.radians(wind_direction)) #convert degrees to radians, rotation of position is clockwise from Q1 about the origin 
             layout = [self.rotate_array(ii, theta) for ii in list(zip(layout_x, layout_y))]
             
             # Assign L10 values to all turbines
