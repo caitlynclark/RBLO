@@ -220,12 +220,12 @@ class RBLO(Optimization):
 
         hours_lifetime = 20*365*24                                           # hours in 20 year lifespan
         downtime = 231                                                       # hours per replacement
-        replacements = math.floor([hours_lifetime/ii for ii in L10])    # for all turbines in farm took away the "int" in front of the parenthesis bc potlly causing Exit mode 5
+        replacements = [math.floor(hours_lifetime/ii) for ii in L10]         # for all turbines in farm took away the "int" in front of the parenthesis bc potlly causing Exit mode 5
         replacement_cost = 721000                                            # cost of GB replacement (ref: Yeng, Sheng, and Court: $628,000 USD2011, $715920 USD2019, 720623.01 USD2020)
         power_hours = [hours_lifetime-ii*downtime for ii in replacements]    
         cost = replacement_cost*(sum(replacements))                                # for all turbines, failure cost   
 
-        power = sum([a*b for a, b in zip(power_hours, Power])                          # kW/hr*hr for all turbines
+        power = sum([a*b for a, b in zip(power_hours, Power)])                          # kW/hr*hr for all turbines
 
         return cost, power, replacements                                     # of array
 
