@@ -153,29 +153,33 @@ class RBLO(Optimization):
     
         for aa, wind_direction in enumerate(self.wd):    
 
-            # Define the wind array and rotate towards the wind direction
-            theta = -(math.radians(wind_direction)) #convert degrees to radians, rotation of position is clockwise from Q1 about the origin 
+            # Define the wind array and rotate towards the wind direction, this rotates the array cw, which is equivalent to rotating the array ccw
+            theta = -(math.radians(wind_direction)) #convert degrees to radians 
             layout = [self.rotate_array(ii, theta) for ii in list(zip(layout_x, layout_y))]
             
             # Assign L10 values to all turbines
-            L10_matrix = np.full( (len(layout), len(layout)), float(L10_T1)) #1E15
+            L10_matrix = np.full( (len(layout), len(layout)), 1E15) 
             Power_matrix = np.full( (len(layout), len(layout)), float(Power_T1) )
-                        
-            # Arrange the turbines from upwind to downwind
+
+            # Sort the turbines from upwind to downwind (with y = 0 in front)
             layout.sort(key = lambda x: x[1])
             
             # If two turbines are close enough together, assign the downwind turbine a reliability and power value
             for turb in list(combinations(enumerate(layout), 2)):
-                if abs(turb[1][1][1] - turb[0][1][1]) <= 1890 and abs(turb[1][1][0] - turb[0][1][0]) <= 378:
-                    L10_matrix[turb[0][0], turb[1][0]] = L10_T2_surface(turb[1][1][1] - turb[0][1][1], turb[1][1][0] - turb[0][1][0])
-                    Power_matrix[turb[0][0], turb[1][0]] = Power_T2_surface(turb[1][1][1] - turb[0][1][1], turb[1][1][0] - turb[0][1][0]) #kW/hr
-                    
+                if abs(turb[1][1][0] - turb[0][1][0]) <= 378 and abs(turb[1][1][1] - turb[0][1][1]) <= 1890:
+                    L10_matrix[turb[0][0], turb[1][0]] = L10_T2_surface(turb[1][1][0] - turb[0][1][0], turb[1][1][1] - turb[0][1][1])
+                    Power_matrix[turb[0][0], turb[1][0]] = Power_T2_surface(turb[1][1][0] - turb[0][1][0], turb[1][1][1] - turb[0][1][1]) #kW/hr
+
             # Find the minimum L10 of each row (this identifies which wake limits the life of the bearing)
-            Turbine_L10s.append( [min(column) for column in L10_matrix.T] )
-            result = [np.where(column == np.amin(column)) for column in L10_matrix.T]
-            result = [ii[0][0] for ii in result]    
-            Turbine_PowerVals.append( [column[ii] for column, ii in zip(Power_matrix.T, result)] )                       
-        
+            for i, j in zip(L10_matrix.T, Power_matrix.T):
+                if all(x ==1E15 for x in i):
+                    Turbine_L10s.append(float(L10_T1))
+                    Turbine_PowerVals.append(float(Power_T1))
+                else:
+                    Turbine_L10s.append(min(i))
+                    minpos = np.argmin(i)
+                    Turbine_PowerVals.append(j[minpos])
+                            
         # Use linear damage accumulation to determine L10 for each turbine for the wind directions (in hours)
 
         L10_OverAllWindDirs = [1/sum([b/a for a,b in zip(column, self.wd_freq)]) for column in Turbine_L10s] #1E5 #self.freq        
@@ -237,18 +241,25 @@ class RBLO(Optimization):
         return (cost/power)*1E7 
 
 
-    def _space_constraint(self, x_in, min_dist):
-
+    def _space_constraint(self, x_in):
+        
         x = x_in[0:self.N] 
         y = x_in[self.N:]
-        
 
-        dist = [np.sqrt((abs(x[i])-abs(x[j]))**2 + (abs(y[i])-abs(y[j]))**2) \
-                for i in range(self.N) \
-                for j in range(self.N) if i != j]
-        return np.min(dist) - self._norm(min_dist, self.bndx_min, self.bndx_max)
+        x = self._unnorm(x, self.bndx_min, self.bndx_max)
+        y = self._unnorm(y, self.bndy_min, self.bndy_max)
 
+        # Sped up distance calc here using vectorization
+        locs = np.vstack((x, y)).T
+        distances = cdist(locs, locs) #cloud
+        arange = np.arange(distances.shape[0]) 
+        distances[arange, arange] = 1e10
+        dist = np.min(distances, axis=0) 
+                
+        g = np.array(dist) / self.min_dist - 1
+        return g
 
+       
     def _generate_constraints(self):
 
         tmp1 = {'type': 'ineq','fun' : lambda x,*args: \
