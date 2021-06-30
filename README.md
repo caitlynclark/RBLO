@@ -5,9 +5,7 @@ For technical questions regarding FLORIS, please contact Caitlyn Clark (caitlyn.
 
 A couple of publications with practical information on using floris as a modeling and simulation tool for controls research are
 
-Clark, C.E., Barter, G., DuPont, B.: Reliability-Based Layout Optimization of Offshore Wind Turbines, In Preparation, 2020.
-
-Clark, C.E., Barter, G., Shaler, K., Guo, Y., DuPont, B.: Surrogate Modeling for Wind Turbine Bearing Lifetime Estimation Based on FAST.Farm Simulations, In Preparation, 2020.
+Clark, C.E., Barter, G., DuPont, B.: Reliability-Based Layout Optimization of Offshore Wind Energy Systems, Wind Energy, 2021.
 
 # Citation
 
